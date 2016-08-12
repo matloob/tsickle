@@ -610,16 +610,25 @@ class Annotator extends ClosureRewriter {
     let paramProps: ts.ParameterDeclaration[] = [];
     let nonStaticProps: ts.PropertyDeclaration[] = [];
     let staticProps: ts.PropertyDeclaration[] = [];
+    let abstractMethods: ts.PropertyDeclaration[] = [];
     for (let member of classDecl.members) {
       if (member.kind === ts.SyntaxKind.Constructor) {
         ctors.push(member as ts.ConstructorDeclaration);
       } else if (member.kind === ts.SyntaxKind.PropertyDeclaration) {
         let prop = member as ts.PropertyDeclaration;
         let isStatic = (prop.flags & ts.NodeFlags.Static) !== 0;
+
         if (isStatic) {
           staticProps.push(prop);
         } else {
           nonStaticProps.push(prop);
+        }
+
+      } else if (member.kind === ts.SyntaxKind.MethodDeclaration) {
+        let method = member as ts.MethodDeclaration;
+        const isAbstract = (method.flags & ts.NodeFlags.Abstract) !== 0;
+        if (isAbstract) {
+          abstractMethods.push(method);
         }
       }
     }
@@ -629,7 +638,8 @@ class Annotator extends ClosureRewriter {
       paramProps = ctor.parameters.filter((p) => !!(p.flags & VISIBILITY_FLAGS));
     }
 
-    if (nonStaticProps.length === 0 && paramProps.length === 0 && staticProps.length === 0) {
+    if (nonStaticProps.length === 0 && paramProps.length === 0 && staticProps.length === 0 &&
+        abstractMethods.length === 0) {
       // There are no members so we don't need to emit any type
       // annotations helper.
       return;
@@ -643,6 +653,7 @@ class Annotator extends ClosureRewriter {
     let memberNamespace = [className, 'prototype'];
     nonStaticProps.forEach((p) => this.visitProperty(memberNamespace, p));
     paramProps.forEach((p) => this.visitProperty(memberNamespace, p));
+    abstractMethods.forEach(m => this.visitProperty(memberNamespace, m));
     this.emit('  }\n');
   }
 
